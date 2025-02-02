@@ -7,7 +7,7 @@ To run this project you might need to install some of its dependencies:
 - [Microsoft Blazor Fluent UI](https://www.fluentui-blazor.net/CodeSetup)
 - [Microsoft SQL Server 2022 (or latest)](https://www.microsoft.com/en-us/sql-server/sql-server-2022) (Note: if you don't have a SQL Server license you can use the [Developer Edition](https://www.microsoft.com/en-us/sql-server/sql-server-downloads))
 - (Optional: to empirically/visually keep track of the database content) [Azure Data Studio](https://learn.microsoft.com/pt-pt/azure-data-studio/download-azure-data-studio)
-- (Optional: used to compile the report) [Typst](https://typst.app/) (Optional: used to compile the report)
+- (Optional: used to compile the report) [Typst](https://typst.app/)
 
 ## How to install
 ```shell
