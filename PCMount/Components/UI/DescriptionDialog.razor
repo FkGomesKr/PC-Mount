@@ -1,0 +1,18 @@
+@namespace PCMount.Components.UI
+@implements IDialogContentComponent<String>
+
+<FluentDialogHeader ShowDismiss="true">
+    <FluentLabel Typo="Typography.PaneHeader">@Dialog!.Instance.Parameters.Title</FluentLabel>
+</FluentDialogHeader>
+<FluentDialogBody>
+    <p class="text-justify italic">@Content</p>
+</FluentDialogBody>
+<FluentDialogFooter Visible="false" />
+
+@code {
+    [Parameter]
+    public String Content { get; set; } = string.Empty;
+
+    [CascadingParameter]
+    public FluentDialog? Dialog { get; set; }
+}

@@ -1,0 +1,253 @@
+@page "/dashboard/assembly/{Id:int}"
+@attribute [Authorize(Roles = "Admin")]
+@layout DashboardLayout
+@rendermode InteractiveServer
+<PageTitle>PCMount - Assembly</PageTitle>
+<FluentMenuProvider />
+<FluentToastProvider Position="ToastPosition.BottomRight" />
+
+@inject OrdersService OrdersDb
+@inject ComponentesService ComponentesDb
+@inject InventarioService InventarioDb
+@inject NavigationManager Navigation
+@inject IToastService ToastService
+
+@if (Id <= 0) {
+    <span class="text-center text-xl text-gray-200 mt-8">Invalid Assembly ID.</span>
+} else {
+    if (order == null || steps == null) {
+        <span class="text-center text-xl text-gray-200 mt-8">No order found with the ID @Id to be assembled.</span>
+    } else {
+        @if (order.Status == OrderStatus.Done) {
+            <span class="text-center text-xl text-gray-200 mt-8">Order ID @Id has already been assembled.</span>
+        } else {
+            <div class="relative w-full h-screen-space -mt-4">
+                <FluentBadge Appearance="Appearance.Accent" Class="text-md md:text-xl p-2"><span class="flex flex-row justify-center items-center gap-1"><FluentIcon Color="Color.Fill" Value="@(new Icons.Regular.Size20.Wrench())" />You're Assemblying An <b>@order?.Name</b> For Order Id:<b>@Id</b></span></FluentBadge>
+                <FluentWizard @ref="wizardInstance" Class="min-h-full" StepperPosition="StepperPosition.Left" StepSequence="WizardStepSequence.Any" DisplayStepNumber="@(WizardStepStatus.Current | WizardStepStatus.Next)" StepTitleHiddenWhen="@GridItemHidden.XsAndDown" OnFinish="@OnFinishedAsync">
+                    <Steps>
+                        <FluentWizardStep Label="Overview">
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
+                                <ColorImage imageUrl="@imageUrl" Class="w-full h-step-screen" />
+                                <div class="flex flex-col justify-center items-center relative">
+                                    <div class="flex flex-col gap-4 p-4">
+                                        <h3 class="text-xl">Estimated Total Assembly Time</h3>
+                                        <FluentBadge Class="text-2xl font-medium">
+                                            <span class="flex flex-row justify-center items-center gap-1">
+                                                <FluentIcon Value="@(new Icons.Regular.Size20.Clock())" />
+                                                <span>@calculateTotalETA() minutes</span>
+                                            </span>
+                                        </FluentBadge>
+                                    </div>
+                                    <div class="flex flex-col justify-center items-center p-4">
+                                        <h3 class="text-xl">Assembly Steps</h3>
+                                        <div class="grid grid-cols-4 gap-3 p-4">
+                                            @foreach (var step in steps!) {
+                                                <FluentCard MinimalStyle="true" Class="p-4 flex justify-center items-center relative cursor-pointer" @onmouseover="@(e => hoveringItem(step.StepNumber))" @onclick="() => jumpToStep(step.StepNumber)">
+                                                    @if (IsStepCompleted(step.StepNumber)) {
+                                                        <FluentIcon Value="@(new Icons.Regular.Size20.Checkmark())" />
+                                                    }
+                                                    <FluentBadge Appearance="Appearance.Lightweight"><span class="text-lg font-bold">@step.Name</span></FluentBadge>
+                                                </FluentCard>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </FluentWizardStep>
+                        @foreach (var step in steps!) {
+                            <FluentWizardStep Label="@step.Label">
+                                <AssemblyStep OnComplete="@stepDone" OnUncomplete="@stepUnDone" StepEta="@step.ETA" StepNumber="@step.StepNumber" PartsList="@step.AvaliableParts" PartToAssemble="@step.PartToAssemble" />
+                            </FluentWizardStep>
+                        }
+                        <FluentWizardStep Label="Finalize" Disabled=@(!OrderFinalized)>
+                                <div class="w-full flex flex-row justify-center items-center relative h-step-screen">
+                                    <div class="flex flex-col gap-2 justify-center">
+                                        @if (OrderedParts != null) {
+                                            @foreach (var (part, quantity) in OrderedParts) {
+                                                <FluentBadge Circular="true"><span class="text-lg flex flex-row gap-2 p-3">@part.Tipo: <b>@part.Name</b><FluentIcon Value="@(new Icons.Regular.Size20.Checkmark())" /></span></FluentBadge>
+                                            }
+                                        }
+                                    </div>
+                                    <img class="w-1/2" src=@order?.Image alt="Final Order Image">
+                                </div>
+                        </FluentWizardStep>
+                    </Steps>
+                </FluentWizard>
+            </div>
+        }
+    }
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Order? order;
+    private List<(Part Part, int Quantity)>? OrderedParts;
+    private bool OrderFinalized = false;
+    public class Steps {
+        public int StepNumber {get; set; }
+        public string? Name { get; set; }
+        public string? Label { get; set; }
+        public bool IsCompleted { get; set; }
+        public List<Part>? AvaliableParts { get; set; }
+        public Part? PartToAssemble { get; set; }
+        public int ETA { get; set; }
+    }
+
+    private List<Steps>? steps;
+
+    protected override async Task OnParametersSetAsync() {
+        if (Id <= 0) { // Invalid ID
+            order = null;
+            return;
+        } else {
+            order = await OrdersDb.FindOneAsync(o => o.OrderId == Id); // Fetch the order using FindOneAsync
+            if (order != null) {
+                OrderedParts = await OrdersDb.GetPartsForOrderAsync(order);
+                steps = new List<Steps> {
+                    new Steps { StepNumber = 0, Name = "Case", Label = "Prepare Case", IsCompleted = false, AvaliableParts = (await ComponentesDb.GetPartsByTypeAsync(PartTipo.Case)), PartToAssemble = GetOrderedPart(PartTipo.Case), ETA = 2 },
+                    new Steps { StepNumber = 1, Name = "Power Supply", Label = "Install PSU", IsCompleted = false, AvaliableParts = (await ComponentesDb.GetPartsByTypeAsync(PartTipo.PowerSupply)), PartToAssemble = GetOrderedPart(PartTipo.PowerSupply), ETA = 3 },
+                    new Steps { StepNumber = 2, Name = "Motherboard", Label = "Install Motherboard", IsCompleted = false, AvaliableParts = (await ComponentesDb.GetPartsByTypeAsync(PartTipo.Motherboard)), PartToAssemble = GetOrderedPart(PartTipo.Motherboard), ETA = 5 },
+                    new Steps { StepNumber = 3, Name = "Processor", Label = "Install CPU", IsCompleted = false, AvaliableParts = (await ComponentesDb.GetPartsByTypeAsync(PartTipo.Processor)), PartToAssemble = GetOrderedPart(PartTipo.Processor), ETA = 8 },
+                    new Steps { StepNumber = 4, Name = "Memory", Label = "Install RAM", IsCompleted = false, AvaliableParts = (await ComponentesDb.GetPartsByTypeAsync(PartTipo.Memory)), PartToAssemble = GetOrderedPart(PartTipo.Memory), ETA = 7 },
+                    new Steps { StepNumber = 5, Name = "Graphics Card", Label = "Install GPU", IsCompleted = false, AvaliableParts = (await ComponentesDb.GetPartsByTypeAsync(PartTipo.GraphicsCard)), PartToAssemble = GetOrderedPart(PartTipo.GraphicsCard), ETA = 4 },
+                    new Steps { StepNumber = 6, Name = "Storage", Label = "Install Storage", IsCompleted = false, AvaliableParts = (await ComponentesDb.GetPartsByTypeAsync(PartTipo.Storage)), PartToAssemble = GetOrderedPart(PartTipo.Storage), ETA = 8 },
+                    new Steps { StepNumber = 7, Name = "Cooling", Label = "Install Cooling", IsCompleted = false, AvaliableParts = (await ComponentesDb.GetPartsByTypeAsync(PartTipo.Cooling)), PartToAssemble = GetOrderedPart(PartTipo.Cooling), ETA = 15 },
+                };
+            }
+        }
+    }
+
+    private Part? GetOrderedPart(PartTipo type) {
+        if (OrderedParts == null) {
+            return null; 
+        }
+        var match = OrderedParts.FirstOrDefault(p => p.Part.Tipo == type);
+        return match.Part;
+    }
+
+    private async void OnFinishedAsync() {
+        if (OrderedParts == null) {
+            ToastService.ShowError("No parts found to update.");
+            return;
+        }
+        if (!OrderFinalized) {
+            ToastService.ShowWarning("Please complete all the steps before finalizing the order.");
+            return;
+        }
+        foreach (var (part, quantity) in OrderedParts) {
+            try {
+                int newQuantidade = quantity - 1;
+                if (newQuantidade < 0) {
+                    ToastService.ShowError($"Cannot update PartId: {part.PartId}. Quantity would become negative.");
+                    continue;
+                }
+                var updatedInventario = await InventarioDb.UpdateFirstOrDefaultAsync(part.PartId, newQuantidade);
+                if (updatedInventario == null) {
+                    ToastService.ShowError($"Failed to update PartId: {part.PartId}");
+                }
+            } catch (Exception ex) {
+                Console.WriteLine($"An error occurred while updating PartId: {part.PartId}. Error: {ex.Message}");
+            }
+        }
+        if (order != null) {
+            await OrdersDb.UpdateOrderStatusToDoneAsync(order.OrderId);
+        }
+        Navigation.NavigateTo("/dashboard/assembly", true);
+    }
+    private void stepDone(int StepNumber) {
+        if (steps != null) {
+            steps[StepNumber].IsCompleted = true;
+            foreach (var step in steps) {
+                Console.WriteLine($"Step '{step.Label}' is completed: {step.IsCompleted}");
+                if (!step.IsCompleted) {
+                    OrderFinalized = false;
+                    return;
+                } else {
+                    OrderFinalized = true;
+                }
+            }
+        }
+    }
+
+    private void stepUnDone(int StepNumber) {
+        Console.WriteLine("Reverting the last completed step");
+        if (steps != null && StepNumber < steps.Count - 1) {
+            steps[StepNumber + 1].IsCompleted = false;
+            if (StepNumber == steps.Count - 1) {
+                OrderFinalized = false;
+            }
+        }
+    }
+
+    private bool IsStepCompleted(int stepNumber) {
+        if (steps == null) {
+            return false;
+        }
+        return steps[stepNumber].IsCompleted;
+    }
+
+    private int calculateTotalETA() {
+        if (steps == null) {
+            return 0;
+        }
+        int totalETA = 0;
+        foreach (var step in steps) {
+            totalETA += step.ETA;
+        }
+        return totalETA;
+    }
+
+    private FluentWizard? wizardInstance;
+
+    private void jumpToStep(int stepNumber) {
+        if (steps != null && wizardInstance != null) {
+            wizardInstance.GoToStepAsync(stepNumber+1); // +1 to offset the overview step
+        }
+    }
+
+    private string imageUrl { get; set; } = "/assets/pcbuild-step-0.png";
+    private void hoveringItem(int item) {
+        switch (item) {
+            case 3:
+                imageUrl = "/assets/pcbuild-step-1.png";
+                break;
+            case 7:
+                imageUrl = "/assets/pcbuild-step-2.png";
+                break;
+            case 2:
+                imageUrl = "/assets/pcbuild-step-3.png";
+                break;
+            case 4:
+                imageUrl = "/assets/pcbuild-step-4.png";
+                break;
+            case 5:
+                imageUrl = "/assets/pcbuild-step-5.png";
+                break;
+            case 6:
+                imageUrl = "/assets/pcbuild-step-6.png";
+                break;
+            case 1:
+                imageUrl = "/assets/pcbuild-step-7.png";
+                break;
+            case 0:
+                imageUrl = "/assets/pcbuild-step-8.png";
+                break;
+            default:
+                imageUrl = "/assets/pcbuild-step-0.png";
+                break;
+        }
+    }
+}
+
+<style scoped>
+    .h-screen-space {
+        /* Calculate the height of the screen without the height of the header */
+        height: calc(100vh - 12.0rem);
+    }
+
+    .h-step-screen {
+        height: calc(100vh - 18.0rem);
+    }
+</style>

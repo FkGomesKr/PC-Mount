@@ -1,0 +1,27 @@
+# Build results
+bin/
+obj/
+build/
+Migrations/
+
+# User-specific files
+*.user
+*.suo
+
+# IDEs
+.vs/
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# NuGet packages
+packages/
+
+# Auto-generated files
+*.Generated.cs
+
+# Backup files
+*.bak
+*.swp

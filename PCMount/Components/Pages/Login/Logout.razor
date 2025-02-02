@@ -1,0 +1,32 @@
+@page "/logout"
+<PageTitle>PCMount - Logout</PageTitle>
+
+@using Microsoft.AspNetCore.Authentication
+
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+
+<FluentDialog>
+    <FluentDialogHeader Visible="false" />
+    <FluentDialogBody>
+        <FluentStack Orientation="Orientation.Vertical" HorizontalAlignment="HorizontalAlignment.Center">
+            <h4>You have been logged out.</h4>
+            <NavLink href="/" Match="NavLinkMatch.All">
+                <FluentButton IconStart="@(new Icons.Regular.Size16.ArrowLeft())">Back</FluentButton>
+            </NavLink>
+        </FluentStack>
+    </FluentDialogBody>
+    <FluentDialogFooter Visible="false" />
+</FluentDialog>
+
+@code {
+    [CascadingParameter]
+    public HttpContext? HttpContext { get; set; }
+
+    protected override async Task OnInitializedAsync() {
+        await base.OnInitializedAsync();
+        if (HttpContext!.User.Identity!.IsAuthenticated) {
+            await HttpContext.SignOutAsync();
+        }
+    }
+}

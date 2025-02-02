@@ -1,0 +1,20 @@
+@namespace PCMount.Components.UI
+
+<div class="@Class relative">
+    <img src="@ImageUrl" alt="PC Mounting Step" class="w-full h-full object-contain image-blend" />
+    <span class="color-background absolute inset-0" style="background-color: var(--accent-fill-rest);">&nbsp</span>
+</div>
+
+@code {
+    [Parameter]
+    public string? ImageUrl { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+}
+
+<style scoped>
+    .color-background {
+        mix-blend-mode: hue;
+    }
+</style>

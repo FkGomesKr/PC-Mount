@@ -1,0 +1,86 @@
+@namespace PCMount.Components.UI
+@implements IDialogContentComponent<Computer>
+
+@inject ComponentesService ComponentesDb
+@inject IToastService ToastService
+
+<FluentDialogHeader ShowDismiss="true">
+    <FluentStack VerticalAlignment="VerticalAlignment.Center">
+        <FluentIcon Value="@(new Icons.Regular.Size24.WindowApps())" />
+        <FluentLabel Typo="Typography.PaneHeader">@Dialog!.Instance.Parameters.Title</FluentLabel>
+    </FluentStack>
+</FluentDialogHeader>
+<FluentDialogBody>
+    <FluentStack VerticalAlignment="VerticalAlignment.Center" Orientation="Orientation.Vertical" Gap="GapSize.Small">
+        <FluentAutocomplete TOption="Part" Label="Motherboard" OnOptionsSearch="@(e => OnSearch(e, "Motherboard"))" Placeholder="Select Motherboard" MaximumOptionsSearch="int.MaxValue" MaximumSelectedOptions="1" OptionText="@(item => $"{item.Name} | {@calculateProfit(item.Preco)}")" @bind-SelectedOptions="SelectedMotherboards" />
+        <FluentAutocomplete TOption="Part" Label="Processor" OnOptionsSearch="@(e => OnSearch(e, "Processor"))" Placeholder="Select Processor" MaximumOptionsSearch="int.MaxValue" MaximumSelectedOptions="1" OptionText="@(item => $"{item.Name} | {@calculateProfit(item.Preco)}")" @bind-SelectedOptions="SelectedProcessors" />
+        <FluentAutocomplete TOption="Part" Label="Memory" OnOptionsSearch="@(e => OnSearch(e, "Memory"))" Placeholder="Select Memory" MaximumOptionsSearch="int.MaxValue" MaximumSelectedOptions="1" OptionText="@(item => $"{item.Name} | {@calculateProfit(item.Preco)}")" @bind-SelectedOptions="SelectedMemories" />
+        <FluentAutocomplete TOption="Part" Label="Graphics Card" OnOptionsSearch="@(e => OnSearch(e, "GraphicsCard"))" Placeholder="Select Graphics Card" MaximumOptionsSearch="int.MaxValue" MaximumSelectedOptions="1" OptionText="@(item => $"{item.Name} | {@calculateProfit(item.Preco)}")" @bind-SelectedOptions="SelectedGraphicsCards" />
+        <FluentAutocomplete TOption="Part" Label="Storage" OnOptionsSearch="@(e => OnSearch(e, "Storage"))" Placeholder="Select Storage" MaximumOptionsSearch="int.MaxValue" MaximumSelectedOptions="1" OptionText="@(item => $"{item.Name} | {@calculateProfit(item.Preco)}")" @bind-SelectedOptions="SelectedStorages" />
+        <FluentAutocomplete TOption="Part" Label="Power Supply" OnOptionsSearch="@(e => OnSearch(e, "PowerSupply"))" Placeholder="Select Power Supply" MaximumOptionsSearch="int.MaxValue" MaximumSelectedOptions="1" OptionText="@(item => $"{item.Name} | {@calculateProfit(item.Preco)}")" @bind-SelectedOptions="SelectedPowerSupplies" />
+        <FluentAutocomplete TOption="Part" Label="Case" OnOptionsSearch="@(e => OnSearch(e, "Case"))" Placeholder="Select Case" MaximumOptionsSearch="int.MaxValue" MaximumSelectedOptions="1" OptionText="@(item => $"{item.Name} | {@calculateProfit(item.Preco)}")" @bind-SelectedOptions="SelectedCases" />
+        <FluentAutocomplete TOption="Part" Label="Cooling" OnOptionsSearch="@(e => OnSearch(e, "Cooling"))" Placeholder="Select Cooling" MaximumOptionsSearch="int.MaxValue" MaximumSelectedOptions="1" OptionText="@(item => $"{item.Name} | {@calculateProfit(item.Preco)}")" @bind-SelectedOptions="SelectedCooling" />
+    </FluentStack>
+</FluentDialogBody>
+<FluentDialogFooter>
+    <FluentButton IconStart="@(new Icons.Regular.Size16.Cart())" Appearance="Appearance.Accent" OnClick="@SaveAsync">Add To Cart</FluentButton>
+    <FluentButton Appearance="Appearance.Neutral" OnClick="@CancelAsync">Cancel</FluentButton>
+</FluentDialogFooter>
+
+@code {
+    [Parameter]
+    public Computer Content { get; set; } = new Computer { Name = "Custom Build", Price = 0, Image = "/assets/cdn/computer-custom-build.png" };
+
+    [CascadingParameter]
+    public FluentDialog? Dialog { get; set; }
+
+    IEnumerable<Part> SelectedMotherboards = Array.Empty<Part>();
+    IEnumerable<Part> SelectedProcessors = Array.Empty<Part>();
+    IEnumerable<Part> SelectedMemories = Array.Empty<Part>();
+    IEnumerable<Part> SelectedGraphicsCards = Array.Empty<Part>();
+    IEnumerable<Part> SelectedStorages = Array.Empty<Part>();
+    IEnumerable<Part> SelectedPowerSupplies = Array.Empty<Part>();
+    IEnumerable<Part> SelectedCases = Array.Empty<Part>();
+    IEnumerable<Part> SelectedCooling = Array.Empty<Part>();
+
+    Part[] Components = Array.Empty<Part>();
+
+    protected override async Task OnInitializedAsync() {
+        Components = await ComponentesDb.GetArrayAsync();
+    }
+
+    private void OnSearch(OptionsSearchEventArgs<Part> e, string partType) {
+        e.Items = Components.Where(part => part.Tipo.ToString() == partType && part.Name.Contains(e.Text, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private string calculateProfit(double price) {
+        double profit = price + price * 0.10;
+        return profit.ToString("C");
+    }
+
+    private double calculatePrice() {
+        double price = (SelectedMotherboards.FirstOrDefault()?.Preco ?? 0) + 
+                    (SelectedProcessors.FirstOrDefault()?.Preco ?? 0) + 
+                    (SelectedMemories.FirstOrDefault()?.Preco ?? 0) + 
+                    (SelectedGraphicsCards.FirstOrDefault()?.Preco ?? 0) + 
+                    (SelectedStorages.FirstOrDefault()?.Preco ?? 0) + 
+                    (SelectedPowerSupplies.FirstOrDefault()?.Preco ?? 0) + 
+                    (SelectedCases.FirstOrDefault()?.Preco ?? 0) +
+                    (SelectedCooling.FirstOrDefault()?.Preco ?? 0);
+        double totalPrice = price + price * 0.10;
+        return Math.Round(totalPrice, 2); 
+    }
+
+    private async Task SaveAsync() {
+        Content = new Computer { Name = "Custom Build", Price = calculatePrice(), Image = "/assets/cdn/computer-custom-build.png", MotherboardId = SelectedMotherboards.FirstOrDefault()?.PartId, ProcessorId = SelectedProcessors.FirstOrDefault()?.PartId, MemoryId = SelectedMemories.FirstOrDefault()?.PartId, GraphicsCardId = SelectedGraphicsCards.FirstOrDefault()?.PartId, StorageId = SelectedStorages.FirstOrDefault()?.PartId, PowerSupplyId = SelectedPowerSupplies.FirstOrDefault()?.PartId, CaseId = SelectedCases.FirstOrDefault()?.PartId, CoolingId = SelectedCooling.FirstOrDefault()?.PartId, Motherboard = SelectedMotherboards.FirstOrDefault(), Processor = SelectedProcessors.FirstOrDefault(), Memory = SelectedMemories.FirstOrDefault(), GraphicsCard = SelectedGraphicsCards.FirstOrDefault(), Storage = SelectedStorages.FirstOrDefault(), PowerSupply = SelectedPowerSupplies.FirstOrDefault(), Case = SelectedCases.FirstOrDefault(), Cooling = SelectedCooling.FirstOrDefault() };
+        if (Content.MotherboardId == null || Content.ProcessorId == null || Content.MemoryId == null || Content.GraphicsCardId == null || Content.StorageId == null || Content.PowerSupplyId == null || Content.CaseId == null) {
+            ToastService.ShowWarning("Please select all components to add to cart.");
+            return;
+        }
+        await Dialog!.CloseAsync(Content);
+    }
+
+    private async Task CancelAsync() {
+        await Dialog!.CancelAsync();
+    }
+}

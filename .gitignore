@@ -1,0 +1,7 @@
+# Ignore custom project files
+Relatorio/*.pdf
+Relatorio/files/*.mwb.bak
+Relatorio/files/*.mwb
+.vscode/*
+.idea/*
+*.log

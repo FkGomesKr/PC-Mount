@@ -1,0 +1,18 @@
+@namespace PCMount.Components.UI
+
+<FluentDialog>
+    <FluentDialogHeader Visible="false" />
+    <FluentDialogBody>
+        <FluentStack Orientation="Orientation.Vertical" HorizontalAlignment="HorizontalAlignment.Center" Class="my-splash">
+            <h4>@Title</h4>
+            <FluentProgressRing></FluentProgressRing>
+            <span>Loading...</span>
+        </FluentStack>
+    </FluentDialogBody>
+    <FluentDialogFooter Visible="false" />
+</FluentDialog>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "Waiting";
+}

@@ -1,0 +1,225 @@
+﻿@page "/dashboard/shop"
+@layout DashboardLayout
+@attribute [StreamRendering]
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+<PageTitle>PCMount - Parts Shop</PageTitle>
+<FluentDialogProvider />
+<FluentMenuProvider />
+<FluentToastProvider Position="ToastPosition.BottomRight" />
+
+@inject ComponentesService ComponentesDb
+@inject InventarioService InventarioDb
+@inject IDialogService DialogService
+@inject IToastService ToastService
+
+<FluentToolbar class="w-full py-2 rounded-md shadow-md mb-4 flex flex-row justify-between items-center">
+    <FluentSelect TOption="PartTipo" Items="Enum.GetValues(typeof(PartTipo)).Cast<PartTipo>().ToList()" Placeholder="Select a category" SelectedOptionChanged="filterCategoryChanged" />
+    <FluentMenuButton IconStart="new Icons.Regular.Size16.Filter()" ButtonAppearance="@Appearance.Neutral" Text="Order by" OnMenuChanged="filterMenuChanged">
+        <FluentMenuItem Id="1"><FluentIcon Value="@(new Icons.Regular.Size16.ArrowSortUp())" /> Highest Price</FluentMenuItem>
+        <FluentMenuItem Id="2"><FluentIcon Value="@(new Icons.Regular.Size16.ArrowSortDown())" /> Lowest Price</FluentMenuItem>
+    </FluentMenuButton>
+    <FluentSpacer />
+    <FluentSearch class="w-1/5" Placeholder="Search for Parts" @bind-Value="@searchTerm" @bind-Value:after="@OnSearchInput" Immediate="true" />
+    <FluentButton IconStart="@(new Icons.Regular.Size16.FilterDismiss())" Appearance="Appearance.Neutral" @onclick="() => resetFilters()">Reset Filters</FluentButton>
+</FluentToolbar>
+
+@if (products == null || filteredProducts == null) {
+    <LoadingDialog Title="Loading Parts Shop..." />
+} else if (!filteredProducts.Any()) {
+    <span class="text-center text-xl text-gray-200 mt-8">No products found.</span>
+} else {
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7 gap-5">
+        @foreach (Product product in filteredProducts!) {
+            <div class="custom-transition transition duration-300 ease-in-out">
+                <FluentCard MinimalStyle="true" class="relative flex flex-col justify-center items-center text-center gap-2 hover:translate-y-2">
+                    <FluentButton class="absolute top-2 left-2" IconStart="@(new Icons.Regular.Size16.Info())" Appearance="Appearance.Lightweight" @onclick="() => ShowDescription(product.Name, product.Descricao ?? string.Empty)"></FluentButton>
+                    <div class="relative w-36 rounded-md">
+                        <img src="@product.Image" class="object-cover w-full h-full rounded-md" />
+                        <div class="absolute pos bottom-0 z-10 product-custom-transition transition duration-200 ease-in-out">
+                            <FluentBadge Appearance="Appearance.Neutral">
+                                <span class="text-green-500 font-medium text-xl">@product.Preco.ToString("C")</span>
+                            </FluentBadge>
+                        </div>
+                    </div>
+                    <h3 class="mb-0">@product.Name</h3>
+                    <FluentBadge class="flex flex-row justify-center items-center text-center font-bold" Appearance="Appearance.Lightweight">@product.Tipo #@product.PartId</FluentBadge>
+                    <div class="flex flex-col gap-2 justify-center items-center text-center">
+                        <div class="w-full flex flex-row gap-1.5 justify-center items-center text-center">
+                            <FluentButton IconStart="@(new Icons.Regular.Size16.Subtract())" Appearance="Appearance.Neutral" @onclick="() => DecrementQuantity(product)"></FluentButton>
+                            <FluentNumberField @bind-Value=@product.Quantity ReadOnly="true"/>
+                            <FluentButton IconStart="@(new Icons.Regular.Size16.Add())" Appearance="Appearance.Neutral" @onclick="() => IncrementQuantity(product)"></FluentButton>
+                        </div>
+                        <FluentButton  class="w-full"  IconStart="@(new Icons.Regular.Size16.VehicleTruckProfile())"  Appearance="Appearance.Accent" @onclick="() => OrderProduct(product)">Order</FluentButton>
+                    </div>
+                </FluentCard>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    // Intermediary class to store product information extended from Part
+    private class Product : Part {
+        public int Quantity { get; set; }
+    }
+
+    private List<Product>? products;
+    private List<Product>? filteredProducts = new List<Product>();
+    private int filterMenuOption = 0;
+    private string filterCategory = string.Empty;
+
+    private string searchTerm = string.Empty;
+    private void OnSearchInput() {
+        if (string.IsNullOrWhiteSpace(searchTerm)) {
+            searchTerm = string.Empty;
+            DefaultSearchProducts();
+        } else {
+            FilterProducts(); // Filter the products
+        }
+    }
+
+    private void filterCategoryChanged(PartTipo SelectedOption) {
+        string category = SelectedOption.ToString();
+        if (!string.IsNullOrEmpty(category)) {
+            filterCategory = category;
+            SortProducts();
+        }
+    }
+
+    private void filterMenuChanged(MenuChangeEventArgs args) {
+        if (!string.IsNullOrEmpty(args.Id)) {
+            filterMenuOption = int.Parse(args.Id);
+            SortProducts();
+        }
+    }
+
+    private void resetFilters() {
+        filterCategory = string.Empty;
+        filterMenuOption = 0;
+        searchTerm = string.Empty;
+        SortProducts();
+    }
+
+    protected override async Task OnInitializedAsync() {
+        // Query the database to fetch Componentes data
+        products = (await ComponentesDb.GetListAsync())?.Select(c => new Product {
+            Name = c.Name,
+            Tipo = c.Tipo,
+            PartId = c.PartId,
+            Preco = c.Preco,
+            Descricao = c.Descricao,
+            Image = c.Image,
+            Quantity = 0
+        }).ToList();
+        // Initialize filteredProducts with all products
+        DefaultSearchProducts();
+    }
+
+    private void FilterProducts() {
+        if (string.IsNullOrWhiteSpace(searchTerm)) {
+            DefaultSearchProducts(); // If the search term is empty, show all products
+        } else {
+            // Filter products whose names contain the search term (case-insensitive)
+            filteredProducts = products?
+                .Where(p => p.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+        // Explicitly tell Blazor to re-render the UI
+        StateHasChanged();
+    }
+
+    // Method to increment the quantity
+    private void IncrementQuantity(Product product) {
+        product.Quantity++;
+        StateHasChanged(); // Re-render the UI
+    }
+
+    // Method to decrement the quantity
+    private void DecrementQuantity(Product product) {
+        if (product.Quantity > 0) {
+            product.Quantity--;
+            StateHasChanged(); // Re-render the UI
+        }
+    }
+
+    private async Task OrderProduct(Product product) {
+        if (product.Quantity > 0) {
+            // Update the quantity in the database
+            var result = await InventarioDb.TransactionStockItemAsync(product.PartId, product.Quantity);
+            if (result == null) {
+                ToastService.ShowError("Failed to place order.");
+                return;
+            }
+            ToastService.ShowSuccess($"Order placed for {product.Name} with quantity {product.Quantity}");
+            product.Quantity = 0;
+        } else {
+            ToastService.ShowError("Quantity must be greater than 0 to place an order.");
+        }
+    }
+
+    private void DefaultSearchProducts() {
+        filteredProducts = products;
+    }
+
+    private async Task ShowDescription(String title, String content) {
+        DialogParameters parameters = new() {
+            Title = title,
+            TrapFocus = true,
+            Modal = true,
+            PreventScroll = true 
+        };
+        if (string.IsNullOrEmpty(content)) {
+            content = "No description available.";
+        }
+        IDialogReference dialog = await DialogService.ShowDialogAsync<DescriptionDialog>(content, parameters);
+    }
+
+    private void SortProducts() {
+        if (filteredProducts == null)
+            return;
+        // Apply category filter
+        if (!string.IsNullOrEmpty(filterCategory)) {
+            filteredProducts = products!
+                .Where(p => string.Equals(p.Tipo.ToString(), filterCategory, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        } else {
+            DefaultSearchProducts();
+        }
+        // Apply sorting
+        switch (filterMenuOption) {
+            case 1: // Highest Price
+                filteredProducts = filteredProducts!.OrderByDescending(p => p.Preco).ToList();
+                break;
+            case 2: // Lowest Price
+                filteredProducts = filteredProducts!.OrderBy(p => p.Preco).ToList();
+                break;
+            default: 
+                break;
+        }
+    }
+}
+
+<style scoped>
+.custom-transition:hover {
+    transform: scale(1.05); 
+}
+
+.pos {
+    left: -20px;
+    transform: rotate(10deg);
+}
+
+.product-custom-transition:hover {
+    transform: scale(1.15); 
+}
+
+fluent-number-field::part(step-up),
+fluent-number-field::part(step-down) {
+    display: none;
+}
+
+fluent-number-field::part(control) {
+    text-align: center;
+}
+</style>

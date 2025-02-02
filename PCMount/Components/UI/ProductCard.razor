@@ -1,0 +1,122 @@
+@namespace PCMount.Components.UI
+@rendermode InteractiveServer
+
+<FluentCard MinimalStyle="true" @onmouseover="() => animateDiscount(true)" @onmouseleave="() => animateDiscount(false)" Class="relative flex flex-col justify-between items-center text-center gap-2 h-full">
+    <div class="w-36 h-40 rounded-md relative pb-6 mb-1">
+        <img src="@Product!.Image" class="object-cover w-full h-full rounded-md" />
+        <div class="absolute pos bottom-0 z-10 custom-transition transition duration-200 ease-in-out">
+            <FluentBadge Appearance="Appearance.Neutral">
+                <span class="text-green-500 font-bold text-xl">@getPriceDiscount(@Product!.Price, @Product!.Discount).ToString("C")</span>
+            </FluentBadge>
+        </div>
+    </div>
+    @if (Product!.Discount > 0) {
+        <FluentBadge Fill="highlight" BackgroundColor="#991b1b"  Color="white"  Class="absolute top-5 right-5 text-lg font-bold">-@Product!.Discount%</FluentBadge>
+        <div class="absolute top-14 right-5">
+            <div class="@((isHoveringDiscount ? "slide-down" : "slide-up"))">
+                <FluentBadge Fill="highlight" Appearance="Appearance.Neutral" BackgroundColor="#991b1b" Color="white" >
+                    <span class="font-medium line-through text-lg">@Product!.Price.ToString("C")</span>
+                </FluentBadge>
+            </div>
+        </div>
+    }
+    <h4 class="mb-0">
+        @Product!.Name
+    </h4>
+    <div class="mt-auto">
+        <div class="flex flex-col gap-1 justify-start items-start text-left text-sm mb-1.5">
+            @if (Product!.Motherboard != null) {
+                <span><FluentBadge Appearance="Appearance.Neutral">Motherboard:</FluentBadge> @Product!.Motherboard?.Name</span>
+            }
+            @if (Product!.Processor != null) {
+                <span><FluentBadge Appearance="Appearance.Neutral">CPU:</FluentBadge> @Product!.Processor?.Name</span>
+            }
+            @if (Product!.Memory != null) {
+                <span><FluentBadge Appearance="Appearance.Neutral">RAM:</FluentBadge> @Product!.Memory?.Name</span>
+            }
+            @if (Product!.GraphicsCard != null) {
+                <span><FluentBadge Appearance="Appearance.Neutral">GPU:</FluentBadge> @Product!.GraphicsCard?.Name</span>
+            }
+            @if (Product!.Storage != null) {
+                <span><FluentBadge Appearance="Appearance.Neutral">Storage:</FluentBadge> @Product!.Storage?.Name</span>
+            }
+            @if (Product!.PowerSupply != null) {
+                <span><FluentBadge Appearance="Appearance.Neutral">PSU:</FluentBadge> @Product!.PowerSupply?.Name</span>
+            }
+            @if (Product!.Case != null) {
+                <span><FluentBadge Appearance="Appearance.Neutral">Case:</FluentBadge> @Product!.Case?.Name</span>
+            }
+            @if (Product!.Cooling != null) {
+                <span><FluentBadge Appearance="Appearance.Neutral">Cooling:</FluentBadge> @Product!.Cooling?.Name</span>
+            }
+        </div>
+        <div class="mt-2 w-full">
+            <FluentButton class="w-full" IconStart="@(new Icons.Regular.Size16.Cart())" Appearance="Appearance.Accent" OnClick="@(() => AddToCart(Product))">Add to Cart</FluentButton>
+        </div>
+    </div>
+</FluentCard>
+
+@code {
+    private bool isHoveringDiscount = false; 
+
+    [Parameter]
+    public Computer? Product { get; set; } = null;
+
+    [Parameter]
+    public EventCallback<Computer> OnAddToCart { get; set; }
+
+    private void animateDiscount(bool isHovering) {
+        isHoveringDiscount = isHovering;
+    }
+
+    private void AddToCart(Computer product) {
+        OnAddToCart.InvokeAsync(product);
+    }
+
+    private double getPriceDiscount(double price, double? discount) {
+        if (discount == null || discount == 0) return price;
+        return price - price * discount.Value * 0.01;
+    }
+}
+
+
+<style scoped>
+.slide-down {
+    animation: slideDown 0.5s ease-in-out forwards;
+}
+
+@@keyframes slideDown {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.slide-up {
+    animation: slideUp 0.5s ease-in-out forwards;
+}
+
+@@keyframes slideUp {
+    from {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+}
+
+.pos {
+    left: -20px;
+    transform: rotate(10deg);
+}
+
+.custom-transition:hover {
+    transform: scale(1.15); 
+}
+</style>

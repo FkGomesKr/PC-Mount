@@ -1,0 +1,248 @@
+@namespace PCMount.Components.UI
+@rendermode InteractiveServer
+@inject OrdersService OrdersDb
+@inject ComponentesService ComponentesDb
+
+<div class="w-full flex flex-col lg:px-8 lg:py-4">
+    <FluentBadge class="w-full">
+        <span class="flex flex-col items-center">
+            <span class="text-lg font-bold">Step @(StepNumber+1): Assemble @PartToAssemble?.Name</span>
+            <div class="flex flex-col text-left gap-2 mb-2">
+            @if (PartToAssemble!.Tipo.ToString() == "Case")  {
+                <span>1.) Open the side panels of the case;</span>
+                <span>2.) Remove any included screws, cable ties, or packaging materials;</span>
+                <span>3.) Check for pre-installed case fans and ensure they are properly connected to the fan controller (if present);</span>
+                <span>4.) Install the motherboard standoffs.</span>
+            } else if (PartToAssemble!.Tipo.ToString() == "Motherboard")  {
+                <span>1.) Remove the motherboard from its packaging;</span>
+                <span>2.) Remove protective plastics from the motherboard (if present);</span>
+                <span>3.) Install the motherboard into the case.</span>
+            } else if (PartToAssemble!.Tipo.ToString() == "Processor")  {
+                <span>1.) Remove the CPU from its packaging;</span>
+                <span>3.) Remove the socket protection from the motherboard.</span>
+                <span>3.) Install the CPU into the motherboard;</span>
+            } else if (PartToAssemble!.Tipo.ToString() == "Memory")  {
+                <span>1.) Remove the RAM from its packaging;</span>
+                <span>2.) Install the RAM into the motherboard.</span>
+                <span>3.) Verify that the RAM is properly seated and locked into place.</span>
+            } else if (PartToAssemble!.Tipo.ToString() == "Storage")  {
+                <span>1.) Remove the storage device from its packaging;</span>
+                <span>2.) Install the storage device into the case.</span>
+                <span>3.) Connect the storage device to the motherboard and power supply.</span>
+            } else if (PartToAssemble!.Tipo.ToString() == "GraphicsCard")  {
+                <span>1.) Remove the GPU from its packaging;</span>
+                <span>2.) Check PCIe slot compatibility with the motherboard;</span>
+                <span>3.) Install the GPU into the motherboard;</span>
+                <span>4.) Connect the GPU to the power supply.</span>
+            } else if (PartToAssemble!.Tipo.ToString() == "PowerSupply")  {
+                <span>1.) Remove the PSU from its packaging;</span>
+                <span>2.) Install the PSU into the case;</span>
+                <span>3.) Connect the PSU to the motherboard and other components.</span>
+            } else if (PartToAssemble!.Tipo.ToString() == "Cooling")  {
+                <span>1.) Remove the cooler from its packaging;</span>
+                <span>2.) Apply thermal paste to the CPU;</span>
+                <span>3.) Install the cooler onto the CPU and tighten the screws.</span>
+            }
+            </div>
+        </span>
+    </FluentBadge>
+    <div class="w-full flex flex-col lg:flex-row justify-center items-center lg:gap-16 gap-4 mt-6">
+        <div class="w-full h-full flex flex-col gap-2 items-center">
+            <FluentBadge class="w-full"><span class="text-lg font-bold">Correspondent Order Part Is: <span style="color: var(--accent-fill-rest);">@PartToAssemble?.Name</span></span></FluentBadge>
+            <FluentAccordion Class="w-full">
+                <FluentAccordionItem Heading="Select Part In Stock">
+                    <div class="grid h-32 grid-cols-2 gap-4 overflow-y-auto overflow-x-hidden">
+                        @if (PartsList != null)  {
+                            @foreach (Part part in PartsList!)  {
+                                <FluentButton Appearance="Appearance.Accent" Class="h-full w-full" @onclick="() => setActiveCase(part)">
+                                    <div class="flex flex-col justify-center items-center py-2 gap-2">
+                                        <span class="text-sm text-center font-bold break-words">@part.Name</span>
+                                        <img class="h-12" src="@part.Image" alt="Part Image">
+                                    </div>
+                                </FluentButton>
+                            }
+                        }
+                    </div>
+                </FluentAccordionItem>
+            </FluentAccordion>
+            <FluentCard MinimalStyle="true" class="relative nopad flex flex-col items-center text-center gap-2">
+                <span class="text-2xl font-medium">Selected Part</span>
+                <div class="h-full flex flex-col justify-center items-center">
+                    @if (activeCase != null && partInDisplay == null)  {
+                        <img class="mt-2 h-44 @animationClass" src=@activeCase.Image alt="Part in Selection">
+                        <p class="font-bold @animationClass">@activeCase.Name</p>
+                        <FluentButton class="mb-2 w-full" IconStart="@(new Icons.Filled.Size24.Wrench())" Appearance="Appearance.Accent" @onclick="() => setPartInDisplay(activeCase)">Place</FluentButton>
+                    } else {
+                        <p class="h-52"></p>
+                    }
+                </div>
+            </FluentCard>
+        </div>
+        <div class="sm:flex hidden">
+            <FluentIcon Value="@(new Icons.Regular.Size24.ArrowRight())" Width="50px" />
+        </div>
+        <div class="w-full flex gap-8 items-center">
+            <FluentCard MinimalStyle="true" class="relative flex flex-col justify-center items-center text-center gap-2">
+                <span class="text-2xl font-medium">Current Build</span>
+                <div class="h-60 flex flex-col justify-center items-center">
+                    @if (partInDisplay != null)  {
+                        <img class="h-5/6 @animationClass" src=@partInDisplay.Image alt="Part in Display">
+                    }
+                </div>
+                <FluentCard class="flex flex-col items-center nopad">
+                    <FluentIcon Value="@(new Icons.Regular.Size24.Clock())" />
+                    <span class="font-bold">This step takes @(StepEta-1)-@StepEta minutes</span>
+                </FluentCard>
+            </FluentCard>
+        </div>
+    </div>
+</div>
+
+@code {
+
+    [Parameter]
+    public List<Part>? PartsList { get; set; }
+    [Parameter]
+    public Part? PartToAssemble { get; set; }
+    [Parameter]
+    public int StepNumber { get; set; }
+    [Parameter]
+    public int StepEta { get; set; }
+    [Parameter]
+    public EventCallback<int> OnComplete { get; set; }
+    [Parameter]
+    public EventCallback<int> OnUncomplete { get; set; }
+
+    private bool IsCompleted = false;
+    private Part? activeCase;
+    private Part? partInDisplay = null;
+    private string animationClass = "";
+
+    private async Task CompleteStep() {
+        if (OnComplete.HasDelegate)
+        {
+            IsCompleted = true;
+            await OnComplete.InvokeAsync(StepNumber);
+        }
+    }
+
+    private async Task unCompleteStep() {  
+        if (OnUncomplete.HasDelegate)
+        {
+            IsCompleted = false;  
+            await OnUncomplete.InvokeAsync(StepNumber);
+        }
+    }
+
+    private async Task setActiveCase(Part iCase)
+    {
+        if (activeCase != iCase) {
+            if (activeCase != null)
+            {
+                animationClass = "slideOutChange"; // Trigger the exit animation
+                partInDisplay = null;
+                if (IsCompleted) {
+                    await unCompleteStep();
+                }
+                Console.WriteLine("Nao pode avancar");
+                StateHasChanged(); 
+                await Task.Delay(500); 
+            }
+
+            animationClass = ""; 
+            activeCase = null; 
+            StateHasChanged(); 
+
+            activeCase = iCase; 
+            animationClass = "slideIn"; // Trigger the entry animation
+            StateHasChanged();
+        }
+    }
+
+    private async Task setPartInDisplay(Part iCase)
+    {
+        animationClass = "slideOutAssembly"; // Trigger the exit animation
+        StateHasChanged(); 
+        await Task.Delay(4800);
+
+        animationClass = ""; 
+        partInDisplay = null; 
+        StateHasChanged(); 
+
+        partInDisplay = iCase; 
+        if (partInDisplay?.PartId == PartToAssemble?.PartId) {
+            await CompleteStep();
+            Console.WriteLine("pode avancar");
+        }
+        animationClass = "slideIn"; // Trigger the entry animation
+        StateHasChanged();
+    }
+}
+
+<style scoped>
+.partsContainer {
+    height: 530px;
+}
+
+.partsContainer span {
+    white-space: normal; 
+    word-wrap: break-word;
+    overflow-wrap: break-word; 
+}
+
+@@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@@keyframes slideOutToLeftChange {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@@keyframes slideOutToLeftAssembly {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+.slideOutAssembly {
+  animation: slideOutToLeftAssembly 5s ease-in-out;
+}
+.slideOutChange {
+  animation: slideOutToLeftChange 0.5s ease-in-out;
+}
+.slideIn {
+  animation: slideInFromRight 0.5s ease-in-out;
+}
+.nopad {
+    padding: 8px !important;
+}
+.timepos {
+    bottom: 20px;
+}
+.pq {
+    height: 300px;
+}
+
+.h-step-screen {
+        max-height: calc(100vh - 18.0rem);
+    }
+</style>

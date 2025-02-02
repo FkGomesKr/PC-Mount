@@ -1,0 +1,17 @@
+@namespace PCMount.Components.UI
+
+<LoadingDialog Title="@Title" />
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7 gap-5">
+    @foreach (int element in Enumerable.Range(1, NumberCards))
+    {
+        <FluentSkeleton Width="100%" Height="340px"></FluentSkeleton>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "Waiting";
+
+    [Parameter]
+    public int NumberCards { get; set; } = 14;
+}

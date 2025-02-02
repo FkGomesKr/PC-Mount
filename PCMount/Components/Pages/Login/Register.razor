@@ -1,0 +1,70 @@
+@page "/register"
+<PageTitle>PCMount - Register</PageTitle>
+
+@inject NavigationManager NavigationManager
+@inject UsersService UsersDb
+
+<FluentDialog>
+    <FluentDialogHeader Visible="false" />
+    <FluentDialogBody Class="flex flex-col items-center justify-center space-y-4 p-8">
+        <img src="assets/pcmountlogo.png" alt="PCMount Logo" class="w-32 h-32 mx-auto" />
+        <h1 class="text-2xl font-bold text-center">Welcome to PCMount</h1>
+        <span class="text-sm text-center">Please enter your credentials to register.</span>
+        <EditForm Model="@LoginModel" OnValidSubmit="RegisterAccount" FormName="LoginForm" class="w-full">
+            <DataAnnotationsValidator />
+            <FluentStack Orientation="Orientation.Vertical">
+                <div class="w-full">
+                    <label for="username" class="block text-sm font-medium mb-1.5">Username</label>
+                    <InputText @bind-Value="@LoginModel.UserName" class="text-md rounded-lg block w-full h-10 p-2.5 shadow-sm" style="border: none; background-color: var(--neutral-fill-layer-rest); color: var(--neutral-foreground-rest);" placeholder="Username" />
+                    <ValidationMessage style="color: red;" For="() => LoginModel.UserName" />
+                </div>
+                <div class="w-full">
+                    <label for="password" class="block text-sm font-medium mb-1.5">Password</label>
+                    <InputText @bind-Value="@LoginModel.Password" class="text-md rounded-lg block w-full h-10 p-2.5 shadow-sm" style="border: none; background-color: var(--neutral-fill-layer-rest); color: var(--neutral-foreground-rest);" placeholder="•••••••••" type="password" />
+                    <ValidationMessage style="color: red;" For="() => LoginModel.Password" />
+                </div>
+                <span style="color: red;">@errorMessage</span>
+                <FluentButton IconStart="@(new Icons.Regular.Size16.AddCircle())" Type="ButtonType.Submit" Class="w-full shadow-sm" Appearance="Appearance.Accent">Register</FluentButton>
+                <div class="flex flex-row w-full">
+                    <NavLink href="/" Match="NavLinkMatch.All">
+                        <FluentButton IconStart="@(new Icons.Regular.Size16.ArrowLeft())" Class="w-full shadow-sm" Appearance="Appearance.Lightweight">Back</FluentButton>
+                    </NavLink>
+                    <NavLink href="/login" Match="NavLinkMatch.All" class="ml-auto">
+                        <FluentButton IconStart="@(new Icons.Regular.Size16.Key())" Class="w-full shadow-sm" Appearance="Appearance.Lightweight">Login</FluentButton>
+                    </NavLink>
+                </div>
+            </FluentStack>
+        </EditForm>
+    </FluentDialogBody>
+    <FluentDialogFooter Visible="false" />
+</FluentDialog>
+
+@code{
+    [SupplyParameterFromForm]
+    private LoginViewModel LoginModel { get; set; } = new ();
+
+    private string? errorMessage;
+
+    private async Task RegisterAccount() {
+        bool redirect = false;
+        try {
+            var user = new User {
+                UserName = LoginModel.UserName!,
+                Password = PasswordHasher.HashPassword(LoginModel.Password!),
+                Role = "Client"
+            };
+            if (UsersDb.Any(u => u.UserName == user.UserName)) {
+                errorMessage = "Username already exists.";
+            } else {
+                await UsersDb.CreateAsync(user);
+                redirect = true;
+            }
+        } catch (Exception ex) {
+            errorMessage = $"Authentication failed: {ex.Message}";
+        } finally {
+            if (redirect) {
+                NavigationManager.NavigateTo("/login", true);
+            }
+        }
+    }
+}

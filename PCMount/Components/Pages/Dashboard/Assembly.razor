@@ -1,0 +1,154 @@
+﻿@page "/dashboard/assembly"
+@attribute [Authorize(Roles = "Admin")]
+@layout DashboardLayout
+@rendermode InteractiveServer
+<PageTitle>PCMount - Assembly</PageTitle>
+<FluentDialogProvider />
+
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject OrdersService OrdersDb
+
+<FluentToolbar class="w-full pl-3 pt-4 rounded-md shadow-md mb-4 flex flex-row items-center justify-cente text-center">
+    <h4 class="text-xl font-bold flex flex-row items-center justify-center gap-2"><FluentIcon Value="@(new Icons.Regular.Size24.Wrench())" /> Select an Order to Assemble</h4>
+</FluentToolbar>
+
+@if (orders == null || filteredOrders == null) {
+    <LoadingDialog Title="Loading Orders..." />
+} else if (!filteredOrders.Any()) {   
+    <span class="text-center text-xl text-gray-200 mt-8">No orders found.</span>
+} else {
+    <div class="w-full h-screen-space">
+        <div class="flex flex-row items-center justify-center gap-2">
+            <FluentFlipper Class="hidden md:flex" Direction="FlipperDirection.Previous" Disabled="@IsFirstPage" @onclick="PreviousPage"></FluentFlipper>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-6">
+                @foreach (var order in filteredOrders.Select((Order order, int index) => new { order, index })) {
+                    <FluentCard MinimalStyle="true" class="relative flex flex-col justify-center items-center text-center gap-2 hover:translate-y-2">
+                        <FluentBadge Class="font-medium">@order.order.Status.ToString() Order: @order.order.OrderId</FluentBadge>
+                        <div class="h-40 rounded-md">
+                            <img src="@order.order.Image" class="object-cover w-full h-full rounded-md" />
+                        </div>
+                        <h3 class="mb-0 h-20">@order.order.Name</h3>
+                        <FluentBadge Appearance="Appearance.Neutral">
+                            <span class="flex flex-row justify-center items-center text-center font-bold gap-1">Ordered for:<span class="text-green-500">@order.order.Price.ToString("C")</span></span>
+                        </FluentBadge>
+                        <FluentButton IconStart="@(new Icons.Regular.Size20.PuzzlePiece())" Appearance="Appearance.Lightweight" class="w-4/5" @onclick="() => ShowNeededParts(order.order)">Parts Needed
+                        @{
+                            int count = MissingPartsCount(order.order.OrderId);
+                        }
+                        @if (count > 0) {
+                            <FluentBadge Appearance="Appearance.Accent" Circular="true" slot="end">@count</FluentBadge>
+                        }
+                        </FluentButton>
+                        <FluentButton IconStart="@(new Icons.Regular.Size20.Wrench())" Appearance="Appearance.Accent" Disabled="!orderStartability[order.index]" class="w-4/5" @onclick="() => StartOrderAssembly(order.order, order.index)">Assemble</FluentButton>
+                    </FluentCard>
+                }
+            </div>
+            <FluentFlipper Class="hidden md:flex" Direction="FlipperDirection.Next" Disabled="@IsLastPage" @onclick="NextPage"></FluentFlipper>
+        </div>
+        <div class="flex flex-row items-center justify-center gap-3 pt-6 pb-4">
+            <FluentButton @onclick="@PreviousPage" Disabled="@IsFirstPage" Appearance="Appearance.Outline" class="text-lg font-medium">Previous</FluentButton>
+            <span class="text-md font-bold">@CurrentPage / @TotalPages</span>
+            <FluentButton @onclick="@NextPage" Disabled="@IsLastPage" Appearance="Appearance.Outline" class="text-lg font-medium">Next</FluentButton>
+        </div>
+    </div>
+}
+
+@code {
+    Order[]? orders;
+    private List<Order>? filteredOrders = new List<Order>();
+    private Dictionary<int, bool> orderStartability { get; set; } = new();
+    
+    private Dictionary<int, List<(Part Part, int Quantity)>> orderPartsList = new();
+
+    private async Task PartListDialog(String title, Dictionary<Part, int> parts) {
+        DialogParameters parameters = new() {
+            Title = title,
+            TrapFocus = true,
+            Modal = true,
+            PreventScroll = true 
+        };
+        IDialogReference dialog = await DialogService.ShowDialogAsync<PartsDialog>(parts, parameters);
+    }
+
+    protected override async Task OnParametersSetAsync() {
+        orders = await OrdersDb.GetPendingOrdersAsync();
+        // Initialize the dictionary with the size of the orders array
+        if (orders != null) {
+            for (int i = 0; i < orders.Length; i++) {
+                orderPartsList[orders[i].OrderId] = await OrdersDb.GetPartsForOrderAsync(orders[i]);
+                bool hasOutOfStockParts = HasOutOfStockParts(orders[i].OrderId);
+                orderStartability[i] = !hasOutOfStockParts;
+            }
+        }
+        FilterOrders();
+    }
+
+    private void FilterOrders() {
+        TotalPages = (int)Math.Ceiling(orders!.Length / (double)PageSize);
+        filteredOrders = orders.Skip((CurrentPage - 1) * PageSize).Take(PageSize).ToList();
+    }
+
+    private async Task ShowNeededParts(Order order) {
+        // Load parts and wait for completion
+        List<(Part Part, int Quantity)> partsList = orderPartsList.ContainsKey(order.OrderId) ? orderPartsList[order.OrderId] : await OrdersDb.GetPartsForOrderAsync(order);
+        if (partsList != null && partsList.Any()) {
+            await PartListDialog($"Parts Needed for Order {order.OrderId}", partsList.ToDictionary(p => p.Part, p => p.Quantity));
+        }
+    }
+
+    private string getOrderAssemblyPath(int orderId) {
+        return $"/dashboard/assembly/{orderId}";
+    }
+    
+    private void StartOrderAssembly(Order order, int index) {
+        bool hasOutOfStockParts = HasOutOfStockParts(order.OrderId);
+        if (orderStartability[index] != hasOutOfStockParts) {
+            orderStartability[index] = hasOutOfStockParts;
+            StateHasChanged();
+        }
+        if (!hasOutOfStockParts) {
+            Navigation.NavigateTo(getOrderAssemblyPath(order.OrderId), true);
+        }
+    }
+
+    private int MissingPartsCount(int orderId) {
+        List<(Part Part, int Quantity)> partsList = orderPartsList.ContainsKey(orderId) ? orderPartsList[orderId] : new();
+        return partsList?.Count(p => p.Quantity == 0) ?? 0;
+    }
+
+    private bool HasOutOfStockParts(int orderId) {
+        List<(Part Part, int Quantity)> partsList = orderPartsList.ContainsKey(orderId) ? orderPartsList[orderId] : new();
+        if (partsList == null) {
+            return true;
+        }
+        return partsList?.Any(p => p.Quantity == 0) ?? false;
+    }
+
+    private int CurrentPage { get; set; } = 1;
+    private int PageSize { get; set; } = 5;
+    private int TotalPages { get; set; }
+    private bool IsFirstPage => CurrentPage == 1;
+    private bool IsLastPage => CurrentPage == TotalPages;
+
+    private void NextPage() {
+        if (!IsLastPage) {
+            CurrentPage++;
+            FilterOrders();
+        }
+    }
+
+    private void PreviousPage() {
+        if (!IsFirstPage) {
+            CurrentPage--;
+            FilterOrders();
+        }
+    }
+}
+
+<style scoped>
+    .h-screen-space {
+        /* Calculate the height of the screen without the height of the header */
+        height: calc(100vh - 23.8rem);
+    }
+</style>

@@ -1,0 +1,30 @@
+@namespace PCMount.Components.UI
+@implements IDialogContentComponent<Dictionary<Part, int>>
+
+<FluentDialogHeader ShowDismiss="true">
+    <FluentStack VerticalAlignment="VerticalAlignment.Center">
+        <FluentIcon Value="@(new Icons.Regular.Size24.PuzzlePiece())" />
+        <FluentLabel Typo="Typography.PaneHeader">@Dialog!.Instance.Parameters.Title</FluentLabel>
+    </FluentStack>
+</FluentDialogHeader>
+<FluentDialogBody>
+    <h1 class="font-bold text-xl text-center">Build Requirements:</h1>
+    <div class="grid grid-cols-3 w-full gap-4">
+        @foreach (var (part, quantity) in Content) {
+            <div class="flex flex-col items-center justify-between text-center gap-2">
+                <h3 class="text-lg @(quantity == 0 ? "text-red-500" : "")">@part?.Name</h3>
+                <img src="@part?.Image" class="object-cover h-20" />
+                <FluentBadge class="text-sm"><span class="font-bold @(quantity <= 0 ? "text-red-500" : "")">In Stock: @quantity</span></FluentBadge>
+            </div>
+        }
+    </div>
+</FluentDialogBody>
+<FluentDialogFooter Visible="false" />
+
+@code {
+    [Parameter]
+    public Dictionary<Part, int> Content { get; set; } = new();
+
+    [CascadingParameter]
+    public FluentDialog? Dialog { get; set; }
+}

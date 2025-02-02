@@ -1,0 +1,36 @@
+@namespace PCMount.Components.UI
+@implements IDialogContentComponent<Computer>
+
+<FluentDialogHeader ShowDismiss="true">
+    <FluentStack VerticalAlignment="VerticalAlignment.Center">
+        <FluentIcon Value="@(new Icons.Regular.Size24.Edit())" />
+        <FluentLabel Typo="Typography.PaneHeader">@Dialog!.Instance.Parameters.Title</FluentLabel>
+    </FluentStack>
+</FluentDialogHeader>
+<FluentDialogBody>
+    <FluentStack VerticalAlignment="VerticalAlignment.Center" Orientation="Orientation.Vertical" Gap="GapSize.Small">
+        <FluentTextField Class="w-full -mt-2" Label="Name" @bind-Value="Content.Name" Placeholder="Enter the name of the computer" />
+        <FluentNumberField Class="w-full -mt-2" Label="Price" @bind-Value="Content.Price" Placeholder="Enter the price of the computer" />
+        <FluentNumberField Class="w-full -mt-2" Label="Discount" @bind-Value="Content.Discount" Placeholder="Enter the discount of the computer" />
+    </FluentStack>
+</FluentDialogBody>
+<FluentDialogFooter>
+    <FluentButton IconStart="@(new Icons.Regular.Size20.SaveEdit())" Appearance="Appearance.Accent" OnClick="@SaveAsync">Update</FluentButton>
+    <FluentButton Appearance="Appearance.Neutral" OnClick="@CancelAsync">Cancel</FluentButton>
+</FluentDialogFooter>
+
+@code {
+    [Parameter]
+    public Computer Content { get; set; } = new Computer { Name = "Computer", Price = 0, Image = "/assets/cdn/computer-custom-build.png" };
+
+    [CascadingParameter]
+    public FluentDialog? Dialog { get; set; }
+
+    private async Task SaveAsync() {
+        await Dialog!.CloseAsync(Content);
+    }
+
+    private async Task CancelAsync() {
+        await Dialog!.CancelAsync();
+    }
+}

@@ -1,0 +1,287 @@
+@page "/dashboard"
+@attribute [Authorize(Roles = "Admin")]
+@layout DashboardLayout
+@rendermode InteractiveServer
+<PageTitle>PCMount - Dashboard</PageTitle>
+<FluentToastProvider Position="ToastPosition.BottomRight" />
+<FluentDialogProvider />
+
+@inject NavigationManager Navigation
+@inject ComputersService ComputersDb
+@inject OrdersService OrdersDb
+@inject InventarioService InventarioDb
+@inject IToastService ToastService
+@inject IDialogService DialogService
+
+<div class="grid grid-cols-12 gap-4 w-full h-screen-space">
+    <!-- Main Vertical Section -->
+    <FluentCard MinimalStyle="true" Class="col-span-12 lg:col-span-4 p-4 shadow-md flex flex-col gap-4 max-h-screen-space">
+        <h4 class="text-xl font-semibold flex flex-row gap-1.5"><FluentIcon Value="@(new Icons.Regular.Size20.DocumentBulletListCube())" /> Manage Store Products</h4>
+        @if (computersQueryable != null) {
+            <FluentDataGrid Items="@computersQueryable" ShowHover="false" Pagination="@computersPagination" Class="h-1/2 overflow-y-auto overflow-x-hidden">
+                <PropertyColumn Property="@(o => o.Id)" Title="ID" InitialSortDirection=SortDirection.Ascending Sortable="true" IsDefaultSortColumn=true />
+                <PropertyColumn Property="@(o => o.Name)" Title="Name" />
+                <TemplateColumn Title="Price" Align="@Align.Center">
+                    <span class="text-sm text-green-500">@(context.Price.HasValue ? context.Price.Value.ToString("C") : "N/A")</span>
+                </TemplateColumn>
+                <TemplateColumn Title="Discount" Align="@Align.Center">
+                    <span class="text-sm text-red-500">@(context.Discount > 0 ? $"-{context.Discount}%" : "None")</span>
+                </TemplateColumn>
+                <TemplateColumn Title="Actions" Align="@Align.End">
+                    <FluentButton IconStart="@(new Icons.Regular.Size16.Edit())" Appearance="Appearance.Lightweight" @onclick="() => editComputerProduct(context)"></FluentButton>
+                </TemplateColumn>
+            </FluentDataGrid>
+        }
+        <FluentPaginator State="@computersPagination">
+            <SummaryTemplate>Total Products: <strong>@(computersPagination.TotalItemCount ?? 0)</strong></SummaryTemplate>
+            <PaginationTextTemplate>Page <strong>@(computersPagination.CurrentPageIndex + 1)</strong> of <strong>@(computersPagination.LastPageIndex + 1)</strong></PaginationTextTemplate>
+        </FluentPaginator>
+        <h4 class="text-xl font-semibold flex flex-row gap-1.5"><FluentIcon Value="@(new Icons.Regular.Size20.ReceiptBag())" /> Most Shopped Products</h4>
+        @if (computerOrdersQueryable != null) {
+            <FluentDataGrid Items="@computerOrdersQueryable" ShowHover="true" Pagination="@computerOrdersPagination" Class="h-1/2 overflow-y-auto overflow-x-hidden">
+                <PropertyColumn Property="@(o => o.Id)" Title="ID" Sortable="true" />
+                <PropertyColumn Property="@(o => o.Name)" Title="Name" />
+                <TemplateColumn Title="Price" Align="@Align.Center">
+                    <span class="text-sm text-green-500">@(context.Price.HasValue ? context.Price.Value.ToString("C") : "N/A")</span>
+                </TemplateColumn>
+                <TemplateColumn Title="Discount" Align="@Align.Center">
+                    <span class="text-sm text-red-500">@(context.Discount > 0 ? $"-{context.Discount}%" : "None")</span>
+                </TemplateColumn>
+                <PropertyColumn Property="@(o => o.Quantity)" Title="Quantity" Sortable="true" InitialSortDirection=SortDirection.Descending IsDefaultSortColumn=true />
+            </FluentDataGrid>
+        }
+        <FluentPaginator State="@computerOrdersPagination">
+            <SummaryTemplate>Total Products: <strong>@(computerOrdersPagination.TotalItemCount ?? 0)</strong></SummaryTemplate>
+            <PaginationTextTemplate>Page <strong>@(computerOrdersPagination.CurrentPageIndex + 1)</strong> of <strong>@(computerOrdersPagination.LastPageIndex + 1)</strong></PaginationTextTemplate>
+        </FluentPaginator>
+    </FluentCard>
+    <!-- Main Side Content -->
+    <div class="col-span-12 lg:col-span-8 grid grid-cols-12 gap-4 h-screen-space">
+        <!-- Section -->
+        <FluentCard MinimalStyle="true" Class="col-span-12 lg:col-span-6 p-4 shadow-md">
+            <div class="flex items-center justify-between">
+                <h4 class="text-xl font-semibold flex flex-row gap-1.5 items-center"><FluentIcon Color="Color.Success" Value="@(new Icons.Regular.Size20.MoneyCalculator())" /> Total Revenue</h4>
+                <div class="absolute flex items-center justify-center top-5 right-5">
+                    <FluentProgressRing Color="darkgreen" Stroke="ProgressStroke.Small" Min="0" Max="100" Value="@calculateRevenuePercentage" Width="70px"></FluentProgressRing>
+                    <span class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-lg font-semibold">@calculateRevenuePercentage%</span>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-2 mt-2 w-3/4">
+                <FluentBadge Appearance="Appearance.Lightweight">Profit: @calculateProfit().ToString("C")</FluentBadge>
+                <FluentBadge Appearance="Appearance.Lightweight">Expenses: -@ExpensesValue.ToString("C")</FluentBadge>
+                <FluentBadge Appearance="Appearance.Lightweight">Discounts: -@DiscountsLossValue.ToString("C")</FluentBadge>
+                <FluentBadge Appearance="Appearance.Lightweight">Revenue: @RevenueValue.ToString("C")</FluentBadge>
+                <FluentBadge Appearance="Appearance.Lightweight">Target: @RevenueTarget.ToString("C")</FluentBadge>
+            </div>
+        </FluentCard>
+        <FluentCard MinimalStyle="true" Class="col-span-12 lg:col-span-6 p-4 shadow-md">
+            <div class="flex items-center justify-between">
+                <h4 class="text-xl font-semibold flex flex-row gap-1.5"><FluentIcon Color="Color.Error" Value="@(new Icons.Regular.Size20.MoneyHand())" /> Total Expenses</h4>
+                <div class="absolute flex items-center justify-center top-5 right-5">
+                    <FluentProgressRing Color="red" Stroke="ProgressStroke.Small" Min="0" Max="100" Value="@calculateExpensesPercentage" Width="70px"></FluentProgressRing>
+                    <span class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-lg font-semibold">@calculateExpensesPercentage%</span>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-2 mt-2 w-3/4">
+                <FluentBadge Appearance="Appearance.Lightweight">Expenses: -@ExpensesValue.ToString("C")</FluentBadge>
+                <FluentBadge Appearance="Appearance.Lightweight">Revenue: @RevenueValue.ToString("C")</FluentBadge>
+                <FluentBadge Appearance="Appearance.Lightweight">Limit: @ExpensesLimit.ToString("C")</FluentBadge>
+            </div>
+        </FluentCard>
+        <!-- Section -->
+        <FluentCard MinimalStyle="true" Class="col-span-12 p-4 shadow-md overflow-y-hidden">
+            <h4 class="text-xl font-semibold flex flex-row gap-1.5"><FluentIcon Value="@(new Icons.Regular.Size20.VehicleTruckCube())" /> Most Ordered Parts</h4>
+            <div class="h-full overflow-y-auto pb-7">
+                @if (partsQueryable != null) {
+                    <FluentDataGrid Items="@partsQueryable" ShowHover="true" Pagination="@partsPagination">
+                        <PropertyColumn Property="@(o => o.PartId)" Title="ID" Sortable="true" />
+                        <PropertyColumn Property="@(o => o.Name)" Title="Name" />
+                        <TemplateColumn Title="Price" Align="@Align.Center">
+                            <span class="text-sm">@(context.Preco.HasValue ? context.Preco.Value.ToString("C") : "N/A")</span>
+                        </TemplateColumn>
+                        <PropertyColumn Property="@(o => o.Tipo)" Title="Type" />
+                        <PropertyColumn Property="@(o => o.Quantidade)" Title="Quantity" Sortable="true" InitialSortDirection=SortDirection.Descending IsDefaultSortColumn=true />
+                    </FluentDataGrid>
+                }
+                <FluentPaginator State="@partsPagination">
+                    <SummaryTemplate>Total Products: <strong>@(partsPagination.TotalItemCount ?? 0)</strong></SummaryTemplate>
+                    <PaginationTextTemplate>Page <strong>@(partsPagination.CurrentPageIndex + 1)</strong> of <strong>@(partsPagination.LastPageIndex + 1)</strong></PaginationTextTemplate>
+                </FluentPaginator>
+            </div>
+        </FluentCard>
+        <!-- Section -->
+        <FluentCard MinimalStyle="true" Class="col-span-12 p-4 shadow-md overflow-y-hidden">
+            <h4 class="text-xl font-semibold flex flex-row gap-1.5"><FluentIcon Value="@(new Icons.Regular.Size20.BoxCheckmark())" /> Last Orders</h4>
+            <div class="h-full overflow-y-auto pb-7">
+                @if (ordersQueryable != null) {
+                    <FluentDataGrid Items="@ordersQueryable" ShowHover="false" Pagination="@ordersPagination">
+                        <PropertyColumn Property="@(o => o.OrderId)" Title="ID" Sortable="true" />
+                        <PropertyColumn Property="@(o => o.Client)" Title="Client" />
+                        <PropertyColumn Property="@(o => o.Name)" Title="Order" />
+                        <TemplateColumn Title="Status" Align="@Align.Center">
+                            <FluentBadge Appearance="Appearance.Lightweight">@context.Status</FluentBadge>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Price" Align="@Align.Center">
+                            <span class="text-sm text-green-500">@(context.Price.HasValue ? context.Price.Value.ToString("C") : "N/A")</span>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Actions" Align="@Align.End">
+                            @if (context.Status != OrderStatus.Done.ToString()) {
+                                <FluentButton IconEnd="@(new Icons.Regular.Size16.Wrench())" Appearance="Appearance.Lightweight" @onclick="() => Navigation.NavigateTo(getOrderAssemblyPath(context.OrderId!), true)"></FluentButton>
+                            }
+                            <FluentButton IconEnd="@(new Icons.Regular.Size16.Delete())" Appearance="Appearance.Lightweight" @onclick="() => deleteOrder(context.OrderId!)"></FluentButton>
+                        </TemplateColumn>
+                    </FluentDataGrid>
+                }
+                <FluentPaginator State="@ordersPagination">
+                    <SummaryTemplate>Total Products: <strong>@(ordersPagination.TotalItemCount ?? 0)</strong></SummaryTemplate>
+                    <PaginationTextTemplate>Page <strong>@(ordersPagination.CurrentPageIndex + 1)</strong> of <strong>@(ordersPagination.LastPageIndex + 1)</strong></PaginationTextTemplate>
+                </FluentPaginator>
+            </div>
+        </FluentCard>
+    </div>
+</div>
+
+@code {
+    private double RevenueTarget = 80000;
+    private double ExpensesLimit = 75000;
+    private double ExpensesValue = 0;
+    private double DiscountsLossValue = 0;
+    private double RevenueValue = 0;
+    private double calculateProfit() {
+        return RevenueValue - ExpensesValue - DiscountsLossValue;
+    }
+    private int calculateRevenuePercentage => (int)((RevenueValue / RevenueTarget) * 100);
+    private int calculateExpensesPercentage => (int)((ExpensesValue / ExpensesLimit) * 100);
+    private class Product : Part {
+        public int Quantity { get; set; }
+    }
+
+    record ComputerQuery(int Id, string? Name, double? Price, double? Discount, string? Image);
+    record OrderQuery(int OrderId, string? Client, string? Name, string? Status, double? Price);
+    record PartQuery(int PartId, string? Name, double? Preco, string? Tipo, string? Image, int Quantidade);
+    record ComputerOrderQuery(int Id, string? Name, double? Price, double? Discount, string? Image, int Quantity);
+    PaginationState computersPagination = new PaginationState { ItemsPerPage = 4 };
+    PaginationState computerOrdersPagination = new PaginationState { ItemsPerPage = 4 };
+    PaginationState ordersPagination = new PaginationState { ItemsPerPage = 3 };
+    PaginationState partsPagination = new PaginationState { ItemsPerPage = 4 };
+    IQueryable<ComputerQuery> computersQueryable = Array.Empty<ComputerQuery>().AsQueryable();
+    IQueryable<ComputerOrderQuery> computerOrdersQueryable = Array.Empty<ComputerOrderQuery>().AsQueryable();
+    IQueryable<OrderQuery> ordersQueryable = Array.Empty<OrderQuery>().AsQueryable();
+    IQueryable<PartQuery> partsQueryable = Array.Empty<PartQuery>().AsQueryable();
+    Computer[]? computers;
+
+    private List<(Order Order, User User)>? ordersWithUsers;
+
+    protected override async Task OnInitializedAsync() {
+        computers = await ComputersDb.GetArrayAsync();
+        // Computers Queryable
+        foreach (Computer c in computers) {
+            computersQueryable = computersQueryable.Append(new ComputerQuery(c.Id, c.Name, c.Price, c.Discount, c.Image));
+        }
+        // Orders Queryable
+        ordersWithUsers = await OrdersDb.GetOrdersWithUsersAsync();
+        foreach (var (o, user) in ordersWithUsers) {
+            ordersQueryable = ordersQueryable.Append(new OrderQuery(o.OrderId, user.UserName, o.Name, o.Status.ToString(), o.Price));
+            if (o.Status == OrderStatus.Done) {
+                // Calculate Discounts Loss
+                DiscountsLossValue += o.Price * ((o.Discount ?? 0) / 100);
+                // Calculate Revenue
+                RevenueValue += o.Price - (o.Price * ((o.Discount ?? 0) / 100));
+            }
+        }
+        // Parts Queryable
+        List<Product>? products = (await InventarioDb.IncludeListAsync(i => i.Part))?.Select(i => new Product {
+            Name = i.Part!.Name,
+            Tipo = i.Part.Tipo,
+            PartId = i.Part.PartId,
+            Preco = i.Part.Preco,
+            Quantity = i.Quantidade,
+            Descricao = i.Part.Descricao!,
+            Image = i.Part.Image!
+        }).ToList();
+        foreach (Product p in products!) {
+            partsQueryable = partsQueryable.Append(new PartQuery(p.PartId, p.Name, p.Preco, p.Tipo.ToString(), p.Image, p.Quantity));
+            // Calculate Expenses in Parts
+            ExpensesValue += p.Preco * p.Quantity;
+        }
+        // Computer Orders Queryable
+        Dictionary<string, int> computerOrders = new();
+        // Start by getting all the orders and setting quantity by 0
+        foreach (var (o, user) in ordersWithUsers) {
+            if (o.Name != null) {
+                if (computerOrders.ContainsKey(o.Name)) {
+                    computerOrders[o.Name] += 1;
+                } else {
+                    computerOrders.Add(o.Name, 1);
+                }
+            }
+        }
+        foreach (KeyValuePair<string, int> co in computerOrders) {
+            Computer? computer = computers.FirstOrDefault(c => c.Name == co.Key);
+            if (computer != null) {
+                computerOrdersQueryable = computerOrdersQueryable.Append(new ComputerOrderQuery(computer.Id, computer.Name, computer.Price, computer.Discount, computer.Image, co.Value));
+            }
+        }
+    }
+
+    private string getOrderAssemblyPath(int orderId) {
+        return $"/dashboard/assembly/{orderId}";
+    }
+
+    private async void deleteOrder(int orderId) {
+        var result = await OrdersDb.DeleteAsync(orderId);
+        if (result != null) {
+            ordersQueryable = Array.Empty<OrderQuery>().AsQueryable();
+            if (ordersWithUsers != null) {
+                foreach (var (order, user) in ordersWithUsers) {
+                    ordersQueryable = ordersQueryable.Append(new OrderQuery(order.OrderId, user.UserName, order.Name, order.Status.ToString(), order.Price));
+                }
+            }
+            StateHasChanged();
+            ToastService.ShowSuccess("Order deleted successfully.");
+        } else {
+            ToastService.ShowError("An error occurred while deleting the order.");
+        }
+    }
+    private async void editComputerProduct(ComputerQuery computerQuery) {
+        // get the computer from the database
+        Computer? computer = computers!.FirstOrDefault(c => c.Id == computerQuery.Id);
+        DialogParameters parameters = new() {
+            Title = $"Editing {computer!.Name}",
+            TrapFocus = true,
+            Modal = true,
+            PreventScroll = true 
+        };
+        IDialogReference dialog = await DialogService.ShowDialogAsync<ComputerEditDialog>(computer!, parameters);
+        DialogResult? result = await dialog.Result;
+        if (result.Data is not null) {
+            Computer? editedComputer = result.Data as Computer;
+            if (editedComputer != null) {
+                var response = await ComputersDb.UpdateAsync(computer.Id, editedComputer);
+                if (response != null) {
+                    computers = await ComputersDb.GetArrayAsync();
+                    computersQueryable = Array.Empty<ComputerQuery>().AsQueryable();
+                    foreach (Computer c in computers) {
+                        computersQueryable = computersQueryable.Append(new ComputerQuery(c.Id, c.Name, c.Price, c.Discount, c.Image));
+                    }
+                    StateHasChanged();
+                    ToastService.ShowSuccess("Computer product edited successfully.");
+                } else {
+                    ToastService.ShowError("An error occurred while editing the computer product.");
+                }
+            }
+        }
+    }
+}
+
+<style scoped>
+    .h-screen-space {
+        /* Calculate the height of the screen without the height of the header */
+        height: calc(100vh - 10.8rem);
+    }
+
+    .max-h-screen-space {
+        /* Calculate the height of the screen without the height of the header */
+        max-height: calc(100vh - 10.8rem);
+    }
+</style>

@@ -1,0 +1,162 @@
+﻿@namespace PCMount.Components.UI
+@attribute [StreamRendering]
+@rendermode InteractiveServer
+
+@inject NavigationManager Navigation
+@inject OrdersService OrdersDb
+
+<div class="flex flex-col relative w-full">
+    <FluentStack Orientation="Orientation.Horizontal" Width="100%" class="p-4">
+        <NavLink href="/" Match="NavLinkMatch.All">
+            <img src="/assets/pcmountlogo.png" Slot="start" width="30px"/>
+        </NavLink>
+        <NavLink href="/dashboard" Match="NavLinkMatch.All">
+            <FluentButton class="hidden sm:inline-flex" Appearance="Appearance.Accent">PCMount @(CurrentPageTitle != null ? "| " + CurrentPageTitle : "")</FluentButton>
+        </NavLink>
+        <FluentSpacer />
+        @if (orders != null) {
+            <FluentCounterBadge Dot="@orders!.Any()" Appearance="Appearance.Accent">
+                <FluentButton id="notificationsPopover" IconStart="@(new Icons.Regular.Size20.BoxMultiple())" Appearance="Appearance.Outline" @onclick="() => _visibleNotificationsPopover = !_visibleNotificationsPopover"></FluentButton>
+            </FluentCounterBadge>
+        } else {
+            <FluentCounterBadge Appearance="Appearance.Accent">
+                <FluentButton id="notificationsPopover" IconStart="@(new Icons.Regular.Size20.BoxMultiple())" Appearance="Appearance.Outline" @onclick="() => _visibleNotificationsPopover = !_visibleNotificationsPopover"></FluentButton>
+            </FluentCounterBadge>
+        }
+        <AuthorizeView Roles="Admin">
+            <Authorized>
+                <FluentProfileMenu Initials="@(context.User.Identity!.Name?.Substring(0, 1).ToUpper() ?? string.Empty)">
+                    <HeaderTemplate>
+                        <FluentLabel Typo="@Typography.Subject">Welcome back, <b>@context.User.Identity!.Name</b>.</FluentLabel>
+                    </HeaderTemplate>
+                    <ChildContent>
+                    </ChildContent>
+                    <FooterTemplate>
+                        <FluentStack>
+                            <FluentButton id="themePopover" IconStart="@(new Icons.Regular.Size20.PaintBrush())" Appearance="Appearance.Outline" @onclick="() => _visibleThemePopover = !_visibleThemePopover">Theme</FluentButton>
+                            <FluentSpacer />
+                            <NavLink href="/logout" Match="NavLinkMatch.All">
+                                <FluentButton IconStart="@(new Icons.Regular.Size20.ArrowExit())" Appearance="Appearance.Outline">Logout</FluentButton>
+                            </NavLink>
+                        </FluentStack>
+                    </FooterTemplate>
+                </FluentProfileMenu>
+            </Authorized>
+        </AuthorizeView>
+    </FluentStack>
+    <FluentDivider Style="width: 100%;" Role="DividerRole.Presentation"></FluentDivider>
+</div>
+<div class="sticky top-0 z-10" style="background-color: var(--neutral-fill-layer-rest);">
+    <div class="p-3">
+        @RenderMenuOptions
+    </div>
+    <FluentDivider Style="width: 100%;" Role="DividerRole.Presentation"></FluentDivider>
+</div>
+
+<FluentDesignTheme StorageName="theme" @bind-Mode="@Mode" @bind-OfficeColor="@OfficeColor" />
+<FluentPopover class="rounded-md w-80" VerticalThreshold="170" AnchorId="themePopover" @bind-Open="_visibleThemePopover">
+    <Header>@(new Emojis.Objects.Color.Default.Paintbrush().ToMarkup("20px")) Customize your experience</Header>
+    <Body>
+        <FluentGrid>
+            <FluentGridItem>
+                <FluentSelect class="w-full" Label="Theme" Items="@(Enum.GetValues<DesignThemeModes>())" Width="250px" @bind-SelectedOption="@Mode" />
+            </FluentGridItem>
+            <FluentGridItem>
+                <FluentSelect class="w-full" Label="Color" Items="@(Enum.GetValues<OfficeColor>().Select(i => (OfficeColor?)i))" Height="200px" Width="250px" @bind-SelectedOption="@OfficeColor">
+                    <OptionTemplate>
+                        <FluentStack>
+                            <FluentLabel>@context</FluentLabel>  
+                        </FluentStack>
+                    </OptionTemplate> 
+                </FluentSelect>
+            </FluentGridItem>
+        </FluentGrid>
+    </Body>
+</FluentPopover>
+
+<FluentPopover class="rounded-md w-80" VerticalThreshold="170" AnchorId="notificationsPopover" @bind-Open="_visibleNotificationsPopover">
+    <Header>@(new Emojis.Objects.Color.Default.OutboxTray().ToMarkup("20px")) Orders</Header>
+    <Body>
+        @if (orders == null || orders.Length == 0) {
+            <span class="flex items-center gap-2 text-lg">@(new Microsoft.FluentUI.AspNetCore.Components.Emojis.Symbols.Color.Default.Warning().ToMarkup("20px")) No orders found.</span>
+        } else {
+            <div class="flex flex-col gap-2">
+                @foreach (var order in orders.Take(3)) { // Display only the first 3 orders
+                    <div class="flex justify-between items-center gap-2">
+                        <div class="flex gap-2 items-center">
+                            <img src="@order.Image" class="w-12 h-12 rounded-md" />
+                            <div class="flex flex-col gap-1">
+                                <span>@order.OrderId - @order.Name</span>
+                                <div class="flex gap-1.5 items-center">
+                                    <FluentBadge Fill="highlight" BackgroundColor="#166534" Color="white" style="width: fit-content;">$@order.Price</FluentBadge>
+                                    <FluentBadge style="width: fit-content;">@order.Status</FluentBadge>
+                                </div>
+                            </div>
+                        </div>
+                        <FluentButton IconStart="@(new Icons.Regular.Size16.Wrench())" Appearance="Appearance.Lightweight" @onclick="() => Navigation.NavigateTo(getOrderAssemblyPath(order.OrderId), true)"></FluentButton>
+                    </div>
+                }
+            </div>
+        }
+    </Body>
+    <Footer>
+        <NavLink href="/dashboard" Match="NavLinkMatch.All">
+            <FluentButton class="w-full" Appearance="Appearance.Lightweight">View all</FluentButton>
+        </NavLink>
+    </Footer>
+</FluentPopover>
+
+@code {
+    bool _visibleThemePopover;
+    bool _visibleNotificationsPopover;
+    public DesignThemeModes Mode { get; set; }
+    public OfficeColor? OfficeColor { get; set; }
+
+    public class PageMetadata {
+        public required string Path { get; set; }
+        public required string Title { get; set; }
+        public required Microsoft.FluentUI.AspNetCore.Components.Icon Icon { get; set; }
+    }
+
+    private List<PageMetadata> pagesmetadata = new List<PageMetadata> {
+        new PageMetadata { Path = "/dashboard", Title = "Dashboard", Icon = new Icons.Regular.Size20.Home() },
+        new PageMetadata { Path = "/dashboard/shop", Title = "Parts Shop", Icon = new Icons.Regular.Size20.Cart() },
+        new PageMetadata { Path = "/dashboard/inventory", Title = "Inventory", Icon = new Icons.Regular.Size20.Box() },
+        new PageMetadata { Path = "/dashboard/assembly", Title = "Assembly", Icon = new Icons.Regular.Size20.Wrench() }
+    };
+
+    private RenderFragment RenderMenuOptions => @<FluentStack Orientation="Orientation.Horizontal" Width="100%">
+        @foreach (var pagemetadata in pagesmetadata) {
+            <FluentButton class="w-full hidden sm:inline-flex" IconStart="@pagemetadata.Icon" Appearance="Appearance.Lightweight" @onclick="() => Navigation.NavigateTo(pagemetadata.Path, true)">@pagemetadata.Title</FluentButton>
+            <FluentButton class="w-full inline-flex sm:hidden" IconStart="@pagemetadata.Icon" Appearance="Appearance.Lightweight" @onclick="() => Navigation.NavigateTo(pagemetadata.Path, true)"></FluentButton>
+        }
+    </FluentStack>;
+
+    private string? CurrentPageTitle { get; set; }
+    private Order[]? orders;
+
+    // When component is loaded
+    protected override async void OnInitialized() {
+        base.OnInitialized();
+        SetPageTitle();
+        Navigation.LocationChanged += (sender, args) => SetPageTitle();  // Listen for navigation changes
+        // Load orders
+        await LoadOrdersAsync();
+    }
+
+    private async Task LoadOrdersAsync() {
+        orders = await OrdersDb.GetPendingOrdersAsync(); // Fetch orders from database
+        StateHasChanged(); // Trigger UI update
+    }
+
+    private void SetPageTitle() {
+        var uri = Navigation.Uri;
+        var page = pagesmetadata.FirstOrDefault(p => uri.EndsWith(p.Path));
+        CurrentPageTitle = page?.Title ?? pagesmetadata[0].Title; // Default to "Dashboard" if no match found
+        StateHasChanged(); // Trigger UI update
+    }
+
+    private string getOrderAssemblyPath(int orderId) {
+        return $"/dashboard/assembly/{orderId}";
+    }
+}
